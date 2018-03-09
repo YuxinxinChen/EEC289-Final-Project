@@ -1,4 +1,4 @@
-__global__ void indept_set_gl(uint32_t NumRow, uint32_t *col_id, uint32_t *offset, bool*set, bool useMax, int *numColored){
+__global__ void indept_set_gl(uint32_t NumRow, int currentColor, uint32_t *col_id, uint32_t *offset, bool*set, bool useMax, int *color, int *numColored){
 
 	//Create independent set 
 	//TODO optimize for memory  
@@ -43,4 +43,7 @@ __global__ void indept_set_gl(uint32_t NumRow, uint32_t *col_id, uint32_t *offse
 		//}
 
 	}
+
+	if(row < NumRow)
+	   color[row] = color[row] + currentColor*set[row]*(color[row]==0);
 }

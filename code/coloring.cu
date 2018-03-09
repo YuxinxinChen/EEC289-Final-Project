@@ -1,4 +1,3 @@
-#include "assign_color_gl.cu"
 #include "indept_set_gl.cu"
 
 #define NUM_COLOR_PER_THREAD 1 //this is changed to be more than one, then we need to move my_offset_start and my_offset_end to be in shared memory instead 
@@ -23,10 +22,10 @@ void coloring(uint32_t NumRow, uint32_t numNNZ, uint32_t *col_id, uint32_t *offs
 
 	bool useMax = 1;
 	while(*numColored < NumRow){
-		indept_set_gl<<<numBlocks, numThreads>>>(NumRow, col_id, offset, set, useMax, numColored);
+		indept_set_gl<<<numBlocks, numThreads>>>(NumRow, currentColor, col_id, offset, set, useMax, color, numColored);
 		cudaDeviceSynchronize();
-		assign_color_gl<<<numBlocks, numThreads>>>(currentColor,NumRow, set, color);
-		cudaDeviceSynchronize();
+//		assign_color_gl<<<numBlocks, numThreads>>>(currentColor,NumRow, set, color);
+//		cudaDeviceSynchronize();
 		currentColor++;
 	}
 }

@@ -19,8 +19,7 @@ static void HandleError(cudaError_t err, const char *file, int line) {
 #include "validate.h"
 #include "serial.h"
 #include "utility.h"
-//#include "coloring.cu"
-#include "graphColoring.cu"
+#include "coloring.cu"
 #include "cuda_query.cu"
 
 
