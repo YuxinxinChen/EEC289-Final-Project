@@ -149,7 +149,7 @@ void getBlockedCSR(uint32_t&NumRow, bool* graph, uint32_t *&col_id, uint32_t*&of
 }
 
 //Extract CSR format from the dense adjacency matrix
-void getCSR(uint32_t numNNZ, uint32_t&NumRow, bool* graph, uint32_t *&col_id, uint32_t*&offset){
+void getCSR(uint32_t numNNZ, uint32_t&NumRow, bool* graph, int *col_id, int*offset){
   //numNNZ is the total number of the non-zero entries in the matrix
   //graph is the input graph  (all memory should be allocated)
  

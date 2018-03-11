@@ -51,12 +51,12 @@ int main(int argc, char* argv[])
    /***********************************************************************/
 
    //2) Allocate memory (on both sides)
-   uint32_t *col_id(NULL),*offset(NULL);   
-   HANDLE_ERROR(cudaMallocManaged(&col_id, numNNZ*sizeof(uint32_t)));
+   int *col_id(NULL),*offset(NULL);   
+   HANDLE_ERROR(cudaMallocManaged(&col_id, numNNZ*sizeof(int)));
    
    //last entry will be = numNonZero (so that we have always a pointer
    //to the first and last id for each row with no need for if statments)   
-   HANDLE_ERROR(cudaMallocManaged(&offset, (NumRow +1)*sizeof(uint32_t)));
+   HANDLE_ERROR(cudaMallocManaged(&offset, (NumRow +1)*sizeof(int)));
    /***********************************************************************/
 
    //3) Get graph in CSR format 
