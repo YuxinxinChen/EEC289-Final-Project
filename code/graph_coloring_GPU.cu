@@ -21,7 +21,7 @@ static void HandleError(cudaError_t err, const char *file, int line) {
 #include "utility.h"
 #include "coloring.cu"
 #include "cuda_query.cu"
-
+#include "GraphColoringKernel.h"
 
 int main(int argc, char* argv[])
 {
