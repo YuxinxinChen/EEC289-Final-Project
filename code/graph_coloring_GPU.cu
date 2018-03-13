@@ -95,7 +95,28 @@ int main(int argc, char* argv[])
    /***********************************************************************/
 
 
-   //8)Compare solution 
+   //8)GraphColoring:let each thread compare one host vertex's value with one of its neighbor vertexes
+   standard_context_t context;
+   int sizeNode = NumRow +1;
+   int sizeLbs = offset[sizeNode];
+   int *lbs(NULL), *wir(NULL);
+   HANDLE_ERROR(cudaMallocManaged(&lbs, sizeLbs*sizeof(int)));
+   HANDLE_ERROR(cudaMallocManaged(&wir, sizeLbs*sizeof(int)));
+   load_balance_search(sizeLbs, offset, sizeNode, lbs, context);
+   cudaDeviceSynchronize();
+   WorkItemRank<<<gridSize,blockSize>>>(offset, lbs, wir, sizeLbs);
+   cudaDeviceSynchronize();
+
+   for(int c = 1; c < 254; c++) 
+   {
+        int threadnum = 256;
+        int blocknum = V / threadnum + 1;
+        GraphColoringKernel<<<blocknum,threadnum>>>(c, col_id, offset, bls, wir, randoms, color);
+        cudaDeviceSynchronize();
+    }
+
+   printf("GraphColoringKernel found solution with %d colors\n", CountColors(V, color));
+   printf("Valid coloring: %d\n", IsValidColoring(graph, V, color));
    /***********************************************************************/
 
    return 0;
