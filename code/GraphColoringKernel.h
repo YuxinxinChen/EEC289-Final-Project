@@ -1,3 +1,13 @@
+#include <cub/util_allocator.cuh>
+#include <cub/device/device_scan.cuh>
+#include <moderngpu/transform.hxx>
+#include <moderngpu/kernel_scan.hxx>
+#include <moderngpu/kernel_load_balance.hxx>
+
+using namespace mgpu;
+
+using namespace cub;
+
 /* find each neibor vertex's rank in the host vertex's list */
 __global__
 void WorkItemRank(int *scan, int *lbs, int *wir, int sizeLbs) {
