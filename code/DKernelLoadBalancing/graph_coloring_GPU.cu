@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
 
    bool*set;
    HANDLE_ERROR(cudaMallocManaged(&set, NumRow*sizeof(bool)));
-   memset(set, 0, NumRow); 
+   memset(set, 1, NumRow); 
 
    coloring(NumRow, numNNZ, col_id, offset, color, set);
    
