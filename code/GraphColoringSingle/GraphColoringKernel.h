@@ -54,3 +54,27 @@ void ColorChanging(int numColor, uint32_t NumRow, int* colors, bool* setTrue)
       }
   }
 }
+
+__global__
+void FindChangeColor(int *wir, int *lbs, int sizeLbs, uint32_t *col_id, uint32_t *offset, int currentColor, int *color, bool *set) {
+        for(int i=blockIdx.x*blockDim.x+threadIdx.x; i<sizeLbs; i+=blockDim.x*gridDim.x)
+        {
+                int neighborOwner = lbs[i];
+                int neighbor = col_id[offset[neighborOwner] + wir[i]];
+
+                if(neighbor >= neighborOwner && (color[neighbor]==0 || color[neighbor]==currentColor))
+                        set[neighborOwner]=0;
+
+        }
+}
+
+__global__
+void assignColor(bool *set, int numNodes, int *color, int currentColor)
+{
+        for(int i=blockIdx.x*blockDim.x+threadIdx.x; i<numNodes; i=i+gridDim.x*blockDim.x)
+        {
+                if(set[i]==1 && color[i]==0)
+                        color[i]=currentColor;
+                set[i]=1;
+        }
+}

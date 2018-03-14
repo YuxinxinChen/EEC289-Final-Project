@@ -19,8 +19,9 @@ static void HandleError(cudaError_t err, const char *file, int line) {
 #include "validate.h"
 #include "serial.h"
 #include "utility.h"
-#include "coloring.cu"
 #include "cuda_query.cu"
+#include "GraphColoringKernel.h"
+#include "stopKernel.cu"
 
 int main(int argc, char* argv[])
 {
@@ -68,19 +69,51 @@ int main(int argc, char* argv[])
    HANDLE_ERROR(cudaMallocManaged(&color, NumRow*sizeof(int)));
    memset(color, 0, NumRow );   
 
-   bool*set;
-   HANDLE_ERROR(cudaMallocManaged(&set, NumRow*sizeof(bool)));
-   memset(set, 0, NumRow); 
+   //8)GraphColoring:let each thread compare one host vertex's value with one of its neighbor vertexes
+   standard_context_t context;
+   uint32_t sizeNode = NumRow;
+   uint32_t sizeLbs = numNNZ;
+   int blockSize = 256;
+   int gridSize = sizeLbs / blockSize + 1;
+   int* lbs;
+   int* wir;
+   HANDLE_ERROR(cudaMallocManaged(&lbs, numNNZ*sizeof(int)));
+   HANDLE_ERROR(cudaMallocManaged(&wir, numNNZ*sizeof(int)));
+   load_balance_search(sizeLbs, (int*)offset, sizeNode,lbs,context);
+   cudaDeviceSynchronize();
+   WorkItemRank<<<gridSize,blockSize>>>((int*)offset, lbs, wir, sizeLbs);
+   cudaDeviceSynchronize();
 
-   coloring(NumRow, numNNZ, col_id, offset, color, set);
+   bool* setTrue;
+   HANDLE_ERROR(cudaMallocManaged(&setTrue, NumRow*sizeof(bool)));
+   memset(setTrue, 1, NumRow);
+
+   int *shouldStop;
+   HANDLE_ERROR(cudaMallocManaged(&shouldStop, 1*sizeof(int)));
+   memset(shouldStop, 0, 1);
    
-   //6) Validate parallel solution 
-   printf("Parallel solution has %d colors\n", CountColors(V, color));
-   printf("Valid coloring: %d\n\n", IsValidColoring(graph, V, color));
-   //PrintSolution(color,V);
-   /***********************************************************************/
+   int threadnum = 256;
+   int blocknum = NumRow / threadnum + 1;
 
+   int c = 1;
+   while(*shouldStop == 0)
+   {
+	*shouldStop = 1;
+	FindChangeColor<<<blocknum, threadnum>>>(wir, lbs, numNNZ, col_id, offset, c, color, setTrue);
+//        GraphColoringKernel<<<blocknum,threadnum>>>(c, numNNZ, col_id, offset, lbs, wir, randoms, color, setTrue);
+        cudaDeviceSynchronize();
+	assignColor<<<blocknum, threadnum>>>(setTrue, NumRow, color, c);
+//        ColorChanging<<<blocknum,threadnum>>>(c, NumRow, color, setTrue);
+        cudaDeviceSynchronize();
 
+	stopKernel<<<blocknum, threadnum>>>(color, shouldStop, NumRow);
+	cudaDeviceSynchronize();
+	c++;
+    }
+
+   printf("GraphColoringKernel found solution with %d colors\n", CountColors(V, color));
+   printf("Valid coloring: %d\n", IsValidColoring(graph, V, color));
+/***********************************************************************/
    //7) Color Vertices on CPU
 //   GraphColoring(graph, V, &color);
 //   printf("Brute-foce solution has %d colors\n", CountColors(V, color));   
@@ -92,6 +125,7 @@ int main(int argc, char* argv[])
 //   printf("Valid coloring: %d\n\n", IsValidColoring(graph, V, color));
    //PrintSolution(color,V);
    /***********************************************************************/
+
 
    return 0;
 }
