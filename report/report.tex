@@ -115,11 +115,11 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
 
 \begin{figure}[tbh]
  \centering    
-\begin{tabular}{ |p{4cm}||p{3cm}|| p{4cm}|p{4cm}|}
+\begin{tabular}{ |p{3cm}||p{2cm}| p{2cm}|p{2cm}|p{2cm}|p{2cm}|p{2cm}|}
  \hline
    & $\#$Vertices & Edges &  Average Degree & Vertices(Degree<32) & Vertices(32<=Degree<512) &Vertices(Degree>512) \\ 
      
-     \hhline{|=||=|=|=|=|=}}
+     \hhline{|=||=|=|=|=|=|=|}
  \hline
  le450\_5d.col &450       & 9757  & 43.36 &21  &429 & 0\\
  \hline
@@ -135,7 +135,7 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
  
  
 \end{tabular} 
-\caption{Results and comparsion of our implementation against CPU greedy algorithm.}
+\caption{Sumarry of datasets}
    \label{tab:results}
 \end{figure} 
 
@@ -147,20 +147,20 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
      
      \hhline{|=||=|=|=|}
  \hline
- le450\_5d.col & 4.4231ms  & 2.990ms  &4.923ms \\
+ le450\_5d.col & 4.4231ms  & 2.990ms  &657.198us \\
  \hline
- myciel4.col & 69.378us       & 133.122us  &67.521us \\
+ myciel4.col & 69.378us       & 133.122us  &65.571us \\
  \hline
-   planar43264.col & 416.01us &  107.00ms & 984.315us\\
+   planar43264.col & 416.01us &  107.00ms & 848.125us\\
  \hline
-   qg.order100.col & 54.098ms & 36.883ms   & 73.177ms\\
+   qg.order100.col & 54.098ms & 36.883ms   & 34.17ms\\
  \hline
-   dsjc1000.9.col & 850.73ms & 48.176ms   &1.24s \\
+   dsjc1000.9.col & 850.73ms & 48.176ms   &46.57ms \\
  \hline
  
  
 \end{tabular} 
-\caption{Results and comparsion of our implementation against CPU greedy algorithm.}
+\caption{Results and comparsion of our implementation using different load balancing techniques.}
    \label{tab:results}
 \end{figure} 
 
