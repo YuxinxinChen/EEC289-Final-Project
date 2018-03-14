@@ -121,17 +121,16 @@ int main(int argc, char* argv[])
    for(int c = 1; c < 254; c++)
    {
         int threadnum = 256;
-        int blocknum = V / threadnum + 1;
+        int blocknum = NumRow / threadnum + 1;
         memset(setTrue, true, NumRow); 
-        GraphColoringKernel<<<blocknum,threadnum>>>(c, NumRow, col_id, offset, lbs, wir, randoms, color, setTrue);
+        GraphColoringKernel<<<blocknum,threadnum>>>(c, numNNZ, col_id, offset, lbs, wir, randoms, color, setTrue);
         cudaDeviceSynchronize();
-        ColorChanging<<blocknum,threadnum>>(c, NumRow, color, setTrue);
+        ColorChanging<<<blocknum,threadnum>>>(c, NumRow, color, setTrue);
         cudaDeviceSynchronize();
     }
 
    printf("GraphColoringKernel found solution with %d colors\n", CountColors(V, color));
    printf("Valid coloring: %d\n", IsValidColoring(graph, V, color));
-   /***********************************************************************/
-
+/***********************************************************************/
    return 0;
 }
