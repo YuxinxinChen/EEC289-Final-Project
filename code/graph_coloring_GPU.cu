@@ -97,21 +97,35 @@ int main(int argc, char* argv[])
 
    //8)GraphColoring:let each thread compare one host vertex's value with one of its neighbor vertexes
    standard_context_t context;
-   int sizeNode = NumRow +1;
-   int sizeLbs = offset[sizeNode];
-   int *lbs(NULL), *wir(NULL);
-   HANDLE_ERROR(cudaMallocManaged(&lbs, sizeLbs*sizeof(int)));
-   HANDLE_ERROR(cudaMallocManaged(&wir, sizeLbs*sizeof(int)));
-   load_balance_search(sizeLbs, offset, sizeNode, lbs, context);
+   uint32_t sizeNode = NumRow;
+   uint32_t sizeLbs = numNNZ;
+   int blockSize = 256;
+   int gridSize = sizeLbs / blockSize + 1;
+   int* lbs;
+   int* wir;
+   HANDLE_ERROR(cudaMallocManaged(&lbs, numNNZ*sizeof(int)));
+   HANDLE_ERROR(cudaMallocManaged(&wir, numNNZ*sizeof(int)));
+   load_balance_search(sizeLbs, (int*)offset, sizeNode,lbs,context);
    cudaDeviceSynchronize();
-   WorkItemRank<<<gridSize,blockSize>>>(offset, lbs, wir, sizeLbs);
+   WorkItemRank<<<gridSize,blockSize>>>((int*)offset, lbs, wir, sizeLbs);
    cudaDeviceSynchronize();
 
-   for(int c = 1; c < 254; c++) 
+   for(int i = 0 ; i < V; i++)
+      {
+          randoms[i] = i;
+       }
+
+   bool* setTrue;
+   HANDLE_ERROR(cudaMallocManaged(&setTrue, NumRow*sizeof(bool)));
+
+   for(int c = 1; c < 254; c++)
    {
         int threadnum = 256;
         int blocknum = V / threadnum + 1;
-        GraphColoringKernel<<<blocknum,threadnum>>>(c, col_id, offset, bls, wir, randoms, color);
+        memset(setTrue, true, NumRow); 
+        GraphColoringKernel<<<blocknum,threadnum>>>(c, NumRow, col_id, offset, lbs, wir, randoms, color, setTrue);
+        cudaDeviceSynchronize();
+        ColorChanging<<blocknum,threadnum>>(c, NumRow, color, setTrue);
         cudaDeviceSynchronize();
     }
 
