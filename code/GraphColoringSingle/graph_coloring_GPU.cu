@@ -73,8 +73,8 @@ int main(int argc, char* argv[])
    standard_context_t context;
    uint32_t sizeNode = NumRow;
    uint32_t sizeLbs = numNNZ;
-   int blockSize = 256;
-   int gridSize = sizeLbs / blockSize + 1;
+   int blockSize = 512;
+   int gridSize = (sizeLbs + blockSize -1) / blockSize;
    int* lbs;
    int* wir;
    HANDLE_ERROR(cudaMallocManaged(&lbs, numNNZ*sizeof(int)));
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
    memset(shouldStop, 0, 1);
    
    int threadnum = 256;
-   int blocknum = NumRow / threadnum + 1;
+   int blocknum = (NumRow + threadnum -1)/threadnum;
 
    int c = 1;
    while(*shouldStop == 0)
