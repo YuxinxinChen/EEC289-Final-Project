@@ -17,21 +17,21 @@ void WorkItemRank(int *scan, int *lbs, int *wir, int sizeLbs) {
 /* GraphColoring,let each thread compare one host vertex's value with one of its neibor vertex */
 /* if host vertex's value is smaller than its neibor, do not assign it a color */
 __global__ 
-void GraphColoringKernel(int numColor, uint32_t NumRow, uint32_t *col_id, uint32_t *offset, int *lbs, int *wir, int *randoms, int *colors, bool* set)
+void GraphColoringKernel(int numColor, uint32_t numNNZ, uint32_t *col_id, uint32_t *offset, int *lbs, int *wir, int *randoms, int *colors, bool* set)
 {   
-for (int i = threadIdx.x + blockIdx.x * blockDim.x; i < NumRow; i = i + blockDim.x * gridDim.x) 
+for (int i = threadIdx.x + blockIdx.x * blockDim.x; i < numNNZ; i = i + blockDim.x * gridDim.x) 
  {  
     int host_id = lbs[i];
     int neibor_id = col_id[offset[host_id] + wir[i]];
 
-    if ((colors[host_id] != 0)) return;
+    if ((colors[host_id] != 0)) continue;
 
     int host_value = randoms[host_id];
     int neibor_value = randoms[neibor_id];
     int neibor_color = colors[neibor_id];
 
-      if (host_id == neibor_id) return;
-       if ((neibor_color != 0) && (neibor_color != numColor)) return;
+      if (host_id == neibor_id) continue;
+       if (neibor_color != 0) continue;
         if (host_value < neibor_value)
           {
             set[host_id] = false;
