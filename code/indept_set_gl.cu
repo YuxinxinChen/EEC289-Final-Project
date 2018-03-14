@@ -20,7 +20,7 @@ __global__ void indept_set_gl(uint32_t NumRow, int currentColor, uint32_t *col_i
 				inSet = inSet && (set[col_id[i]] || row < col_id[i]); //avoid thread diveregnce by arthematics 				
 			}else{				
 				//my vertex is in the independent set if it is the "maximum" of its neighbours				
-				inSet = inSet && (set[col_id[i]] || row > col_id[i]);				
+				inSet = inSet && ((color[col_id[i]]!=0 && color[col_id[i]]!=currentColor) || row > col_id[i]);				
 			}
 		}
 		set[row] = inSet;

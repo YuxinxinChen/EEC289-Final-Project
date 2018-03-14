@@ -12,7 +12,7 @@
 
 \begin{document}
 
-\title{Final Project}
+\title{Final Project - Load Balancing on Graph Coloring}
 \author{Yuxin Chen and Ruolan Zeng}
 \date{March 22nd, 2018}
 \maketitle
@@ -41,30 +41,27 @@
 Generally, there are two approach to do graph coloring: 1) independent set (IDS) based 2) greedy algorithm based. In our work, we chose to use independent set based algorithm. %Basically we generate a random number for each node, then a node an be added to the current independent set only if it has the maximum random number among its neighbors. This method ensures every node within the same independent set to be colored , they are not connected. Next iteration we find the maximum vertex on nodes left (exclude nodes which are in the independent sets) and form a new indepedent set. The algorithm continues untill all the nodes belong to independent sets.
 The IDS-based algorithm first assigns random number for each node in the input graph. Then the algorithm proceeds by adding the nodes with maximum random number among their neighbor (nodes they are connected to) to an independent set. Nodes in an independent set are colored with the same colors and deleted from the graph. The process continues between two phases; finding IDS and coloring the IDS and deleting it from the graph until all nodes are colored. 
 
-\subsection*{An naive implementation}
+\section*{An naive implementation}
 An naive implementation: 
-%\begin{figure}[!tbh]
-%\centering        
-%   \subfloat {\includegraphics[width=0.5\textwidth]{naive.jpg}} 
-%   \caption{Overview of IDS based graph coloring.}
-%   \label{fig:fig1}
-%\end{figure}
+We map each thread to each node and each thread will look up all the node's neighbors and see if the node is the maximum among its neighbors. If yes, assign current
+color to the node.
 
-Each iteration, each thread access one node, it will see first if its InIDS value (is in the independent set?) is 1, if yes, it exits, if no, it needs to see its neighbor's InIDS value and only compares the node's random number with its neighbor's whose InIDS value is 0. If it is the maximum among its neighbors, it first writes itself into independent set IDS0 (or IDS1, IDS2, dependent on the iteration), and set the node's InIDS value to 1. Then it goes to next iteration. 
+There might be some load balancing problem. Some nodes might have a lot of neighbors and some might have few. Then the threads mapped to the nodes with longer neighbor
+list keep busy while the threads mapped to the nodes with short neighbor list stay idle. This will hurt the performance really bad. The GPU resource is not fully
+utilized.
 
-So if at this iteration, a node is not included into an independent set, next iteration, it still needs to compare with its live neighbors (dead if some node are included in an independent set). This node will keep using the same neighbor list until it is added to an independent set. There is potential two improvement for this naive implementation: 1) since some thread will access node that are in independent sets, then exits immediately. Since threads are executed in warps, if half of the threads in a warp exit immediately, then we wasting computing cycles and under utilize the hardware. 2) data reuse. Now all the memory access goes through global memory. We should think about using shared memory.
+\section*{Use three Kernels to acchieve load balancing}
+As we explain before, the performance might hurt because the big variance of neighbor list length. Then we would like to process the nodes with huge neighbor list first
+with a block of threads. Then we process the nodes with medium neighbor list with warp of threads. Last we process the nodes with small neighbor list with just threads.
 
-Now just think about how to use shared memory, if we distributed nodes to different blocks, each node can load its neighbor list into shared memory and reuse it until it is added to an independent set. However, each iteration, the node also needs to know its neighbor's status (if added to IDS). If its neighbor belongs to other block, it is hard to keep data coherency among blocks. 
+In this way, we could expect get a better load balancing, thought strickly speaking, the kernel which process the huge neighbor list might still kind of imbalanced. To
+do so, we need to group the nodes according to their degree. Here, we sacrifies memory for better performance by writing three predicate array for nodes which has
+degree larger than 512, larger than 32 and less than 512 and less than 32 respectively. Then we can scan on those three predicate arrays and copy the nodes to large
+degree array, medium degree array and small degree array according to their degree.
 
-\subsection*{Communication free graph coloring}
-We propose this communication free (CF) graph coloring approach:
-
-%\begin{figure}[!tbh]
-%\centering        
-%   \subfloat {\includegraphics[width=0.5\textwidth]{comfree.jpg}}
-%   \caption{Overview of communication free graph coloring.}
-%   \label{fig:fig2}
-%\end{figure} 
+Then I call LargeKernel which I assign a threadblock to process a node on large degree array, call MediumKernel which I assign a wrap to process a node in medium degree
+array, and call SmallKernel which I assign a thread to process a node in small degree. How to decide the threshold of large degree, medium degree, and small degree is
+little heuristic. We use 512, 32 respectively in our experiments.
 
 When we run local graph coloring, we use the algorithm we describe above and ignoring the node's neighbors that are on other blocks, i.e., we don't examine the neighbor which belongs to other blocks. After each block finishes local graph coloring, the conflict can only happen between nodes that belongs to different blocks. Then we extract those nodes only and form a new conflict graph and resolve those conflict by assigning new colors to subset of the conflicting nodes (and leave the others as they are). We are expecting, in practices, the conflict graph would be small %and the number of colors used in local graph coloring will not bad. 
 Because we run local graph coloring in shared memory, it should be fast. 
@@ -120,21 +117,20 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
  \centering    
 \begin{tabular}{ |p{4cm}||p{3cm}|| p{4cm}|p{4cm}|}
  \hline
-   & $\#$Vertices & Our Implementation &  Greedy \\ 
+   & $\#$Vertices & Edges &  Average Degree & Vertices(Degree<32) & Vertices(32<=Degree<512) &Vertices(Degree>512) \\ 
      
-     \hhline{|=||=||=|=|}
+     \hhline{|=||=|=|=|=|=}}
  \hline
- le450\_5d.col &450       & 58  &18 \\
+ le450\_5d.col &450       & 9757  & 43.36 &21  &429 & 0\\
  \hline
- myciel4.col &  23       & 8  &5 \\
+ myciel4.col &  23       & 71  &3.08  &23  &0  &0\\
  \hline
-  planar16.col &16        & 7  &5 \\
+   planar43264.col & 43264     &  259524 & 5.998  &43264 & 0 &0 \\
  \hline
-  planar36864.col & 36864     & 19  &7 \\
+   qg.order100.col &10000  &990000  & 99  & 0 & 10000 & 0 \\
  \hline
-   planar40.col &  40      & 9  & 5\\
+   dsjc1000.9.col & 1000  & 449449 & 449.44  & 0 & 0 & 1000 \\
  \hline
-   planar43264.col & 43264     &  20 & 7\\
  \hline
  
  
@@ -149,21 +145,18 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
  \hline
    & $\#$Naive & Three Kernels &  Load Balancing Search \\ 
      
-     \hhline{|=||=||=|=|}
+     \hhline{|=||=|=|=|}
  \hline
- le450\_5d.col &450       & 58  &18 \\
+ le450\_5d.col & 4.4231ms  & 2.990ms  &18 \\
  \hline
- myciel4.col &  23       & 8  &5 \\
+ myciel4.col & 69.378us       & 133.122us  &5 \\
  \hline
-  planar16.col &16        & 7  &5 \\
+   planar43264.col & 416.01us &  107.00ms & 7\\
  \hline
-  planar36864.col & 36864     & 19  &7 \\
+   qg.order100.col & 54.098ms & 36.883ms   & \\
  \hline
-   planar40.col &  40      & 9  & 5\\
+   dsjc1000.9.col & 850.73ms & 48.176ms   & \\
  \hline
-   planar43264.col & 43264     &  20 & 7\\
- \hline
-   qg.order100.col &
  
  
 \end{tabular} 

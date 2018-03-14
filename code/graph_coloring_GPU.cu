@@ -83,14 +83,14 @@ int main(int argc, char* argv[])
 
 
    //7) Color Vertices on CPU
-   GraphColoring(graph, V, &color);
-   printf("Brute-foce solution has %d colors\n", CountColors(V, color));   
-   printf("Valid coloring: %d\n", IsValidColoring(graph, V, color));
-
-   GreedyColoring(graph, V, &color);
-   printf("\n***************\n");
-   printf("Greedy solution has %d colors\n", CountColors(V, color));
-   printf("Valid coloring: %d\n\n", IsValidColoring(graph, V, color));
+//   GraphColoring(graph, V, &color);
+//   printf("Brute-foce solution has %d colors\n", CountColors(V, color));   
+//   printf("Valid coloring: %d\n", IsValidColoring(graph, V, color));
+//
+//   GreedyColoring(graph, V, &color);
+//   printf("\n***************\n");
+//   printf("Greedy solution has %d colors\n", CountColors(V, color));
+//   printf("Valid coloring: %d\n\n", IsValidColoring(graph, V, color));
    //PrintSolution(color,V);
    /***********************************************************************/
 
