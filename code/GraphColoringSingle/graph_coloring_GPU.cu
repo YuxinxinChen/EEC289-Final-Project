@@ -73,15 +73,17 @@ int main(int argc, char* argv[])
    standard_context_t context;
    uint32_t sizeNode = NumRow;
    uint32_t sizeLbs = numNNZ;
-   int blockSize = 256;
-   int gridSize = sizeLbs / blockSize + 1;
+   int blockSize = 512;
+   int gridSize = (sizeLbs + blockSize -1) / blockSize;
    int* lbs;
-   int* wir;
+//   int* wir;
+   int* neighbor(NULL);
    HANDLE_ERROR(cudaMallocManaged(&lbs, numNNZ*sizeof(int)));
-   HANDLE_ERROR(cudaMallocManaged(&wir, numNNZ*sizeof(int)));
+   HANDLE_ERROR(cudaMallocManaged(&neighbor, numNNZ*sizeof(int)));
    load_balance_search(sizeLbs, (int*)offset, sizeNode,lbs,context);
    cudaDeviceSynchronize();
-   WorkItemRank<<<gridSize,blockSize>>>((int*)offset, lbs, wir, sizeLbs);
+//   WorkItemRank<<<gridSize,blockSize>>>((int*)offset, lbs, wir, sizeLbs);
+   WorkItemRank<<<gridSize,blockSize>>>((int *)offset, lbs, sizeLbs, col_id, offset, neighbor);
    cudaDeviceSynchronize();
 
    bool* setTrue;
@@ -93,14 +95,16 @@ int main(int argc, char* argv[])
    memset(shouldStop, 0, 1);
    
    int threadnum = 256;
-   int blocknum = NumRow / threadnum + 1;
+   int blocknum = 120;
+//   int blocknum = (NumRow + threadnum -1)/threadnum;
 
    int c = 1;
    while(*shouldStop == 0)
    {
 	*shouldStop = 1;
-	FindChangeColor<<<blocknum, threadnum>>>(wir, lbs, numNNZ, col_id, offset, c, color, setTrue);
-//        GraphColoringKernel<<<blocknum,threadnum>>>(c, numNNZ, col_id, offset, lbs, wir, randoms, color, setTrue);
+//	FindChangeColor<<<blocknum, threadnum>>>(wir, lbs, numNNZ, col_id, offset, c, color, setTrue);
+	FindChangeColor<<<blocknum, threadnum>>>( lbs, sizeLbs, neighbor, c, color, setTrue);
+//        GraphColoringKernel<<<blocknum,threadnum>>>(c, numNNZ, col_id, offset, lbs, wir, color, setTrue);
         cudaDeviceSynchronize();
 	assignColor<<<blocknum, threadnum>>>(setTrue, NumRow, color, c);
 //        ColorChanging<<<blocknum,threadnum>>>(c, NumRow, color, setTrue);
