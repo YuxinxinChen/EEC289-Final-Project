@@ -1,6 +1,6 @@
 \documentclass[12pt] {article}
 \usepackage{times}
-\usepackage[margin=0.6in,bottom=1in,top=0.5in]{geometry}
+\usepackage[margin=0.6in,bottom=1in,top=0.9in]{geometry}
 
 \usepackage{hhline}
 \usepackage{subfig}
@@ -38,86 +38,59 @@
 %\end{figure}
 
 \section*{Algorithm Details:}
-Generally, there are two approach to do graph coloring: 1) independent set (IDS) based 2) greedy algorithm based. In our work, we chose to use independent set based algorithm. %Basically we generate a random number for each node, then a node an be added to the current independent set only if it has the maximum random number among its neighbors. This method ensures every node within the same independent set to be colored , they are not connected. Next iteration we find the maximum vertex on nodes left (exclude nodes which are in the independent sets) and form a new indepedent set. The algorithm continues untill all the nodes belong to independent sets.
-The IDS-based algorithm first assigns random number for each node in the input graph. Then the algorithm proceeds by adding the nodes with maximum random number among their neighbor (nodes they are connected to) to an independent set. Nodes in an independent set are colored with the same colors and deleted from the graph. The process continues between two phases; finding IDS and coloring the IDS and deleting it from the graph until all nodes are colored. 
+There are two approaches to do graph coloring: 1) independent set (IDS) based 2) greedy algorithm based. In our work, we chose to use the independent set based algorithm. %Basically we generate a random number for each node; then a node can be added to the current independent set only if it has the maximum random number among its neighbors. This method ensures every node within the same independent set to be colored; they are not connected. Next iteration we find the maximum vertex on nodes left (exclude nodes which are in the independent sets) and form a new independent set. The algorithm continues until all the nodes belong to independent sets.
+The IDS-based algorithm first assigns a random number for each node in the input graph. Then the algorithm proceeds by adding the nodes with maximum random number among their neighbor (nodes they are connected to) to an independent set. Nodes in an independent set are colored with the same colors and deleted from the graph. The process continues between two phases; finding IDS and coloring the IDS and deleting it from the graph until all nodes are colored. 
 
 \section*{An naive implementation}
-An naive implementation: 
-We map each thread to each node and each thread will look up all the node's neighbors and see if the node is the maximum among its neighbors. If yes, assign current
+A naive implementation: 
+We map each thread to each node, and each thread will look up all the node's neighbors and see if the node is the maximum among its neighbors. If yes, assign the current
 color to the node.
 
-There might be some load balancing problem. Some nodes might have a lot of neighbors and some might have few. Then the threads mapped to the nodes with longer neighbor
-list keep busy while the threads mapped to the nodes with short neighbor list stay idle. This will hurt the performance really bad. The GPU resource is not fully
+There might be some load balancing problem. Some nodes might have a lot of neighbors, and some might have few. Then the threads mapped to the nodes with longer neighbor
+list keep busy while the threads mapped to the nodes with short neighbor list stay idle. This will hurt the performance badly. The GPU resource is not fully
 utilized.
 
-\section*{Use three Kernels to acchieve load balancing}
-As we explain before, the performance might hurt because the big variance of neighbor list length. Then we would like to process the nodes with huge neighbor list first
-with a block of threads. Then we process the nodes with medium neighbor list with warp of threads. Last we process the nodes with small neighbor list with just threads.
+\section*{Use three Kernels to achieve load balancing}
+As we explained before, the performance might hurt because of the big variance of neighbor list length. Then we would like to process the nodes with huge neighbor list first
+with a block of threads. Then we process the nodes with the medium neighbor list with a warp of threads. Last we process the nodes with the small neighbor list with just threads.
 
-In this way, we could expect get a better load balancing, thought strickly speaking, the kernel which process the huge neighbor list might still kind of imbalanced. To
-do so, we need to group the nodes according to their degree. Here, we sacrifies memory for better performance by writing three predicate array for nodes which has
+In this way, we could expect to get a better load balancing, thought strickly speaking, the kernel which processes the huge neighbor list might still kind of imbalanced. To
+do so, we need to group the nodes according to their degree. Here, we sacrifice memory for better performance by writing three predicate array for nodes which has
 degree larger than 512, larger than 32 and less than 512 and less than 32 respectively. Then we can scan on those three predicate arrays and copy the nodes to large
-degree array, medium degree array and small degree array according to their degree.
+degree array, medium degree array, and small degree array according to their degree. As the figure ~ \ref{fig:fig1} shows.
 
-Then I call LargeKernel which I assign a threadblock to process a node on large degree array, call MediumKernel which I assign a wrap to process a node in medium degree
-array, and call SmallKernel which I assign a thread to process a node in small degree. How to decide the threshold of large degree, medium degree, and small degree is
-little heuristic. We use 512, 32 respectively in our experiments.
+\begin{figure}[!tbh]
+\centering        
+   \subfloat {\includegraphics[width=0.65\textwidth]{threekernel.png}}
+   \caption{ three kernels load balancing }
+   \label{fig:fig1}
+\end{figure}
 
-When we run local graph coloring, we use the algorithm we describe above and ignoring the node's neighbors that are on other blocks, i.e., we don't examine the neighbor which belongs to other blocks. After each block finishes local graph coloring, the conflict can only happen between nodes that belongs to different blocks. Then we extract those nodes only and form a new conflict graph and resolve those conflict by assigning new colors to subset of the conflicting nodes (and leave the others as they are). We are expecting, in practices, the conflict graph would be small %and the number of colors used in local graph coloring will not bad. 
-Because we run local graph coloring in shared memory, it should be fast. 
+Then I call LargeKernel which I assign a thread block to process a node on large degree array, call MediumKernel which I assign a wrap to process a node in medium degree
+array, and call SmallKernel which I assign a thread to process a node with small degree. How to decide the threshold of large degree, medium degree, and small degree is
+little heuristic. We use 512, 32 respectively in our experiments. 
 
-\section*{Implementation:}
+\section*{Using load balancing Search to achieve load balancing }
 
-\subsection*{Local graph coloring}
-The local coloring kernel divides the graph into number of blocks. Each block will only read the information of the nodes assigned to it i.e., subset of a modified CSR of the adjacency matrix. At the end of this kernel, all nodes assigned to a block will have correct colors (no conflict). However, conflict may occur between nodes assigned to different blocks. We aim to make this phase fast and, secondary, gives decent amount of colors. For that, instead of create and moving an array of random numbers, we use the column ID array as the random number. For example if node 0 and 10 are connected and in the same block, we pick 10 to be in the independent set. Since we need to check if a node is in the independent set and its connectivity frequently, we use shared memory  to store this data specially that the block size is small (to make it fast) and so that data fits in the shared memory. Also, the colors are written into the shared memory before writing it to the global memory. We made sure that all memory memory write and read are coalesced. 
-\subsection*{Conflict resolve}
-%After the steps above, we have the conflict graph which is a format of CSR grouped by color. 
-After the local coloring, we prepare the conflict graph in parallel. This graph is in CSR format that encapsulates the information of a matrix with columns as the nodes and rows as the assigned color. In other words, it is a histogram of the assigned colors. We process each color in sequence. We can definitely process all the color generated in previous step in parallel and each block will get one color, so there is a load balancing problem. %and we don't have time to do that. 
+The key point for this approach is that each thread will get the same amount of elements for CSR's col\_id array like the figure  ~ \ref{fig:fig2} illustrates. The task of algorithm requires each element in the CSR's col\_id array to compare its random number with its owner's random number. Then each thread mapped to each element need to know who is its owner. The function: load\_balance\_search will give an array which is the same size of col\_id, to tell who is the owner of the corresponding element in the col\_id. 
 
-Given an array of conflict nodes of same color, we resolve the conflict by finding the neighbors of each node who has the same color and comparing the node ID with its conflict neighbor's ID, the one with lower ID will not change color, the one with higher ID will be assigned a new color. 
+\begin{figure}[!tbh]
+\centering        
+   \subfloat {\includegraphics[width=0.64\textwidth]{lbs.png}}
+   \caption{ load balancing search load balancing }
+   \label{fig:fig2}
+\end{figure}
 
-Here we give an example for nodes [1,2,3,4] that are conflict nodes whose color is red and node 1 connects to node 3, node 2 connects to node 4. Then we run the algorithm, node 1 will find node 3 is its neighbor, but node 3's ID is higher, then, node 1 will not change its color. Node 3 will find node 1 is its neighbor, and node 1's ID is lower than its ID, then, node 3 will change its color to a new color purple. Some thing for node 2 and node 4, node 2 will not change its color and node 4 will change its color to new color purple. Then we need to review those nodes which ared assigned new color again to ensure they are not conflict to each other. Then we find out node 3's neighbor, and find out node 3 doesn't have conflict neighbors, and for node 4, find out node 4 doesn't have conflict neighbors. Then the conflict nodes originally in color red now are resolved. If node 3 and node 4 are connected, then, we will find out node 3 won't change color since it has lower ID and node 4 will be assigned a new color yellow. We will need to review all the changed color nodes again which is node 4 and find out node 4 doesn't have conflict and all the conflict resolved. 
-
-We do the above process for each color sequentially. After that, we can resolve all the conflict. 
-
-There are some implementation optimization:
-\begin{itemize}
-\item When we get a node and need to find out its neighbor, since the neighbor whose ID is higher than the node, we won't change the node's color. We should not examine its neighbor whose ID is higher. We can achieve this by just using the lower triangle of the graph adjacency matrix. 
-
-\item What we start with is an array of conflict nodes.
-
-%\begin{figure}[!tbh]
-%\centering        
-%   \subfloat {\includegraphics[width=0.5\textwidth]{confre.jpg}}
-%   \caption{Data structure of CF graph coloring.}
-%   \label{fig:fig3}
-%\end{figure} 
-
-We want to get each node's neighbor list to tell if we need change this nodes' color. However if we map each thread to a node in the node array and read its neighbor list and see if the node need change color, we will have very unbalanced work load for each thread, since the neighbor list for each node can vary a lot, then we are wasting computing cycle waiting for the thread who works on the longest neighbor list. We would prefer each thread work on each neighbor of each node. To have enough information to achieve this mapping, we need to do extra work:
-
-%\begin{figure}[!tbh]
-%\centering        
-%   \subfloat {\includegraphics[width=0.5\textwidth]{scanlbswir.jpg}}
-%   \caption{Details of CF load balancing.}
-%   \label{fig:fig4}
-%\end{figure} 
-
-First we ask each thread to load a neighbor of a node and save it in register. To do this, each thread need to know which node's neighbor list, and the position of that neighbor in that neighbor list. To compute which node's neighbor list each thread need to access, we fist compute neighLen array by each thread get the neighbor list's length of each node, then we do scan on neighLen and compute load balancing search on the scan result. To compute the position each thread should access in assigned neighbor list, we compute the work item rank ($wir$) array by computing $lbs[i]=i-scan[lbs[i]]$. After this, each thread can access each neighbor just using $tr\_col\_id[tr\_offset[nodes[lbs[i]]] + wir[i]]$, where $tr\_col\_id$ is the CSR column ID array for the conflict graph and $tr\_offset$ is the CSR row offset array for the conflict graph. Now we can examine the neighbor's color and produce a predicate array of if change color. Using this changeColor array, we can assign new color to nodes who need change color and do scan on changeColor, we can compact those nodes who need change color into a new array. Then go back to the top of the loop until there is no node who need to change color.
-
-\end{itemize}
-
-%\section{Other approach}
-%Another good approach is to distribute nodes to different blocks and generate a random number each iteration and synchronize all the blocks using cooperative group in CUDA 9 or above. Then we can keep the neighbor list in the share memory all the time. One consideration is it is better for each node have a different random number otherwise it will increase the number of iteration to finish coloring. If we set the random number range large enough, the probability to get same random number for different nodes is very low.
-
+Using this approach, even the variance of neighbor list length of each node is very high; tasks are evenly distributed among threads. Thus the computation is more load balanced.
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \section*{Numerical Experiments:}
-Here we show some results of our implementation. Table ~\ref{tab:results} shows the results and comparison against greedy algorithm. We found that even though in the local coloring using the column id as the random number would decrease the amount of memory transfer, but the color would depend on the listing of nodes which is very likely to be not random. This could be one reason why we get larger number of colors. Another reason, is the blocking size given to the local coloring kernel which need fine tuning in order to reach an optimal number of color that our implementation can produce. 
-
+Here we show some results of our implementation. Table ~\ref{tab:results1} shows some features of the graphs we use in our experiments. So myciel and planar43264 are both sparse graph with max degree less than 32. myciel is very small, and planar43264 is larger. gq.order100 is a medium dense graph, and dsjc1000 is a very dense graph. len450 has some variance on the degree of nodes, ranging from 29 to 68. Table ~ \ref{tab:results2} shows the results and comparison among naive implementation and implementation using three kernels and load balancing search. We found that usually load balancing search works pretty well in all kind of graphs. Three kernel approach works pretty well in high variance degree graph and dense graph. There is a dataset which naive implementation won. This also makes sense. The Planar graph has the max degree of the node of 4. Otherwise, it cannot be planar. Planner graph itself is very load balanced, using load balancing techniques only add overhead since they are not free. 
 
 \begin{figure}[tbh]
  \centering    
-\begin{tabular}{ |p{3cm}||p{2cm}| p{2cm}|p{2cm}|p{2cm}|p{2cm}|p{2cm}|}
+\begin{tabular}{ |p{2.9cm}||p{1.7cm}| p{1.7cm}|p{1.7cm}|p{2.2cm}|p{3cm}|p{2.4cm}|}
  \hline
-   & $\#$Vertices & Edges &  Average Degree & Vertices(Degree<32) & Vertices(32<=Degree<512) &Vertices(Degree>512) \\ 
+   & $\#$Vertices & Edges &  Average Degree & Vertices (Degree$<$32) & Vertices (32$\leq$Degree$<$512) &Vertices (Degree$>$512) \\ 
      
      \hhline{|=||=|=|=|=|=|=|}
  \hline
@@ -136,7 +109,7 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
  
 \end{tabular} 
 \caption{Sumarry of datasets}
-   \label{tab:results}
+   \label{tab:results1}
 \end{figure} 
 
 \begin{figure}[tbh]
@@ -160,11 +133,9 @@ Here we show some results of our implementation. Table ~\ref{tab:results} shows 
  
  
 \end{tabular} 
-\caption{Results and comparsion of our implementation using different load balancing techniques.}
-   \label{tab:results}
+\caption{Results and comparison of our implementation using different load balancing techniques.}
+   \label{tab:results2}
 \end{figure} 
-
-Because of the algorithm, the test run on qg.order100.col will use more than 256 colors. However, we use array of unsigned char to record the colors. So our algorihtm failed on this test case.
 
 
 \end{document}
